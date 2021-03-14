@@ -20,14 +20,24 @@ export default Backbone.View.extend({
     const config = opt.config || {};
     const em = config.em;
     const modelOpt = model.opt || {};
-    const { $el, el } = this;
     const { draggableComponents } = config;
     this.opts = opt;
     this.modelOpt = modelOpt;
     this.config = config;
     this.em = em || '';
+
+    // Check if tagName is an webcomponent
+    this._isWebComponent = this.__elementIsWebComponent();
+
+    // Create Element make sure that the elements are create
+    // in scope of the iframe
+    this.setElement(null);
+    this._ensureElement();
+
+    const { $el, el } = this;
     this.pfx = config.stylePrefix || '';
     this.ppfx = config.pStylePrefix || '';
+
     this.attr = model.get('attributes');
     this.classe = this.attr.class || [];
     this.listenTo(model, 'change:style', this.updateStyle);
@@ -55,6 +65,44 @@ export default Backbone.View.extend({
     };
     this.delegateEvents();
     !modelOpt.temporary && this.init(this._clbObj());
+  },
+
+  _createElement(tagName) {
+    // If Element is an Webcomponent use the Constructor th create an valid Element
+    if (this._isWebComponent) {
+      const component = this.config.frameView
+        .getWindow()
+        .customElements.get(tagName);
+      return new component();
+    } else if (
+      this.config &&
+      this.config.frameView &&
+      this.config.frameView.getDoc()
+    ) {
+      // Create the Element in scope of iframe to make sure that all polyfills of the IFrame
+      // are applyed
+      return this.config.frameView.getDoc().createElement(tagName);
+    } else {
+      return document.createElement(tagName);
+    }
+  },
+
+  __elementIsWebComponent() {
+    if (!this.el) return false;
+
+    if (!this.el.tagName) return false;
+
+    if (!this.config) return false;
+
+    if (!this.config.frameView) return false;
+
+    const frameWindow = this.config.frameView.getWindow();
+
+    if (!frameWindow) return false;
+
+    if (!frameWindow.customElements) return false;
+
+    return !!frameWindow.customElements.get(this.el.tagName.toLowerCase());
   },
 
   __isDraggable() {

@@ -6,10 +6,39 @@ export default Backbone.View.extend({
     this.opts = o || {};
     this.config = o.config || {};
     this.em = this.config.em;
+
+    // Check if tagName is an webcomponent
+    this._isWebComponent = this.__elementIsWebComponent();
+
+    // Create Element make sure that the elements are create
+    // in scope of the iframe
+    this.setElement(null);
+    this._ensureElement();
+
     const coll = this.collection;
     this.listenTo(coll, 'add', this.addTo);
     this.listenTo(coll, 'reset', this.resetChildren);
     this.listenTo(coll, 'remove', this.removeChildren);
+  },
+
+  _createElement(tagName) {
+    // If Element is an Webcomponent use the Constructor th create an valid Element
+    if (this._isWebComponent) {
+      const component = this.config.frameView
+        .getWindow()
+        .customElements.get(tagName);
+      return new component();
+    } else if (
+      this.config &&
+      this.config.frameView &&
+      this.config.frameView.getDoc()
+    ) {
+      // Create the Element in scope of iframe to make sure that all polyfills of the IFrame
+      // are applyed
+      return this.config.frameView.getDoc().createElement(tagName);
+    } else {
+      return document.createElement(tagName);
+    }
   },
 
   removeChildren(removed, coll, opts = {}) {
@@ -132,5 +161,21 @@ export default Backbone.View.extend({
     el.innerHTML = '';
     el.appendChild(frag);
     return this;
+  },
+
+  __elementIsWebComponent() {
+    if (!this.el) return false;
+
+    if (!this.config) return false;
+
+    if (!this.config.frameView) return false;
+
+    const frameWindow = this.config.frameView.getWindow();
+
+    if (!frameWindow) return false;
+
+    if (!frameWindow.customElements) return false;
+
+    return !!frameWindow.customElements.get(this.el.tagName);
   }
 });
